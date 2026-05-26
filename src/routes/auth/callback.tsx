@@ -12,32 +12,47 @@ function AuthCallbackPage() {
 
   useEffect(() => {
     const run = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      const error = params.get("error_description") || params.get("error");
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace("#", ""));
+
+      const error =
+        searchParams.get("error_description") ||
+        searchParams.get("error") ||
+        hashParams.get("error_description") ||
+        hashParams.get("error");
 
       if (error) {
         setErrorMessage(error);
         return;
       }
 
-      if (!code) {
-        setErrorMessage("No authentication code was returned.");
-        return;
-      }
+      const code = searchParams.get("code");
 
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
-      if (exchangeError) {
-        setErrorMessage(exchangeError.message);
-        return;
-      }
+        if (exchangeError) {
+          setErrorMessage(exchangeError.message);
+          return;
+        }
+      } else {
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
 
-      const { data } = await supabase.auth.getSession();
+        if (!accessToken || !refreshToken) {
+          setErrorMessage("No authentication session was returned.");
+          return;
+        }
 
-      if (!data.session) {
-        setErrorMessage("Session was not created after Google sign-in.");
-        return;
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (sessionError) {
+          setErrorMessage(sessionError.message);
+          return;
+        }
       }
 
       navigate({ to: "/dashboard", replace: true });
